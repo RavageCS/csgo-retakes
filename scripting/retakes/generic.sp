@@ -1,6 +1,6 @@
 #tryinclude "manual_version.sp"
 #if !defined PLUGIN_VERSION
-#define PLUGIN_VERSION "0.2.0"
+#define PLUGIN_VERSION "0.3.0-dev"
 #endif
 
 #define INTEGER_STRING_LENGTH 20 // max number of digits a 64-bit integer can use up as a string
@@ -285,3 +285,18 @@ stock void StripColors(char[] msg, int size) {
         ReplaceString(msg, size, g_ColorNames[i], "");
     }
 }
+
+stock void StartPausedWarmup() {
+    ServerCommand("mp_warmup_start");
+    ServerCommand("mp_warmup_time 120");  // this value must be greater than 6 or the warmup countdown will always start
+    ServerCommand("mp_warmup_pausetimer 1");
+}
+
+stock void StartTimedWarmup(int time) {
+    ServerCommand("mp_do_warmup_period 1");
+    ServerCommand("mp_warmup_pausetimer 0");
+    ServerCommand("mp_warmuptime %d", time);
+    ServerCommand("mp_warmup_start");
+    ServerCommand("mp_warmup_start"); // don't ask.
+}
+

@@ -88,9 +88,6 @@ int g_PlayerArmor[MAXPLAYERS+1];
 bool g_PlayerHelmet[MAXPLAYERS+1];
 bool g_PlayerKit[MAXPLAYERS+1];
 
-/** Global offsets needed **/
-int g_helmetOffset = 0;
-
 /** Per-round information about the player setup **/
 bool g_bombPlantSignal = false;
 bool g_bombPlanted = false;
@@ -101,14 +98,15 @@ int g_ActivePlayers = 0;
 bool g_RoundSpawnsDecided = false; // spawns are lazily decided on the first player spawn event
 
 /** Forwards **/
+Handle g_hOnGunsCommand = INVALID_HANDLE;
+Handle g_hOnPostRoundEnqueue = INVALID_HANDLE;
+Handle g_hOnPreRoundEnqueue = INVALID_HANDLE;
+Handle g_hOnTeamSizesSet = INVALID_HANDLE;
+Handle g_hOnTeamsSet = INVALID_HANDLE;
 Handle g_OnFailToPlant = INVALID_HANDLE;
 Handle g_OnRoundWon = INVALID_HANDLE;
 Handle g_OnSitePicked = INVALID_HANDLE;
-Handle g_hOnTeamSizesSet = INVALID_HANDLE;
 Handle g_OnWeaponsAllocated = INVALID_HANDLE;
-Handle g_hOnPreRoundEnqueue = INVALID_HANDLE;
-Handle g_hOnPostRoundEnqueue = INVALID_HANDLE;
-Handle g_hOnTeamsSet = INVALID_HANDLE;
 
 #include "retakes/editor.sp"
 #include "retakes/generic.sp"
@@ -165,12 +163,17 @@ public void OnPluginStart() {
     RegAdminCmd("sm_deletespawn", Command_DeleteSpawn, ADMFLAG_CHANGEMAP, "Deletes the nearest spawn");
     RegAdminCmd("sm_deleteallspawns", Command_DeleteAllSpawns, ADMFLAG_CHANGEMAP, "Deletes all spawns for the current map");
     RegAdminCmd("sm_deletemapspawns", Command_DeleteAllSpawns, ADMFLAG_CHANGEMAP, "Deletes all spawns for the current map");
-    RegAdminCmd("sm_bomb", Command_Bomb, ADMFLAG_CHANGEMAP);
-    RegAdminCmd("sm_nobomb", Command_NoBomb, ADMFLAG_CHANGEMAP);
-    RegAdminCmd("sm_onlybomb", Command_OnlyBomb, ADMFLAG_CHANGEMAP);
     RegAdminCmd("sm_iteratespawns", Command_IterateSpawns, ADMFLAG_CHANGEMAP);
     RegAdminCmd("sm_reloadspawns", Command_ReloadSpawns, ADMFLAG_CHANGEMAP);
     RegAdminCmd("sm_savespawns", Command_SaveSpawns, ADMFLAG_CHANGEMAP);
+
+    // TODO: these commands need a better names/a better interface. They're far too confusingly named.
+    RegAdminCmd("sm_bomb", Command_Bomb, ADMFLAG_CHANGEMAP);
+    RegAdminCmd("sm_nobomb", Command_NoBomb, ADMFLAG_CHANGEMAP);
+    RegAdminCmd("sm_onlybomb", Command_OnlyBomb, ADMFLAG_CHANGEMAP);
+
+    /** Player commands **/
+    RegConsoleCmd("sm_guns", Command_Guns);
 
     /** Event hooks **/
     HookEvent("player_connect_full", Event_PlayerConnectFull);
@@ -186,16 +189,15 @@ public void OnPluginStart() {
     HookEvent("bomb_defused", Event_Bomb);
     HookEvent("round_end", Event_RoundEnd);
 
+    g_hOnGunsCommand = CreateGlobalForward("Retakes_OnGunsCommand", ET_Ignore, Param_Cell);
+    g_hOnPostRoundEnqueue = CreateGlobalForward("Retakes_OnPostRoundEnqueue", ET_Ignore, Param_Cell);
+    g_hOnPreRoundEnqueue = CreateGlobalForward("Retakes_OnPreRoundEnqueue", ET_Ignore, Param_Cell, Param_Cell);
+    g_hOnTeamSizesSet = CreateGlobalForward("Retakes_OnTeamSizesSet", ET_Ignore, Param_CellByRef, Param_CellByRef);
+    g_hOnTeamsSet = CreateGlobalForward("Retakes_OnTeamsSet", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
     g_OnFailToPlant = CreateGlobalForward("Retakes_OnFailToPlant", ET_Ignore, Param_Cell);
     g_OnRoundWon = CreateGlobalForward("Retakes_OnRoundWon", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
     g_OnSitePicked = CreateGlobalForward("Retakes_OnSitePicked", ET_Ignore, Param_CellByRef);
-    g_hOnTeamSizesSet = CreateGlobalForward("Retakes_OnTeamSizesSet", ET_Ignore, Param_CellByRef, Param_CellByRef);
     g_OnWeaponsAllocated = CreateGlobalForward("Retakes_OnWeaponsAllocated", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
-    g_hOnPreRoundEnqueue = CreateGlobalForward("Retakes_OnPreRoundEnqueue", ET_Ignore, Param_Cell, Param_Cell);
-    g_hOnPostRoundEnqueue = CreateGlobalForward("Retakes_OnPostRoundEnqueue", ET_Ignore, Param_Cell);
-    g_hOnTeamsSet = CreateGlobalForward("Retakes_OnTeamsSet", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
-
-    g_helmetOffset = FindSendPropOffs("CCSPlayer", "m_bHasHelmet");
 
     g_SiteMins = new ArrayList(3);
     g_SiteMaxs = new ArrayList(3);
@@ -226,11 +228,9 @@ public void OnMapStart() {
 
     ExecConfigs();
 
-    /** begin insane warmup hacks **/
-    ServerCommand("mp_do_warmup_period 1");
-    ServerCommand("mp_warmuptime 25");
-    ServerCommand("mp_warmup_start");
-    ServerCommand("mp_warmup_start");
+    // Force-start warmup for players to connect.
+    // TODO: this really should be a separate cvar, or at least read the builtin warmup cvars.
+    StartTimedWarmup(25);
 }
 
 public void OnMapEnd() {
@@ -293,6 +293,25 @@ public void ResetClientVariables(int client) {
     g_RoundPoints[client] = -POINTS_LOSS;
 }
 
+public Action Command_Guns(int client, int args) {
+    Call_StartForward(g_hOnGunsCommand);
+    Call_PushCell(client);
+    Call_Finish();
+}
+
+public Action OnClientSayCommand(int client, const char[] command, const char[] args) {
+    static char gunsChatCommands[][] = { "gun", "guns", ".gun", ".guns", ".setup", "!gun", "gnus" };
+    for (int i = 0; i < sizeof(gunsChatCommands); i++) {
+        if (strcmp(args[0], gunsChatCommands[i], false) == 0) {
+            Call_StartForward(g_hOnGunsCommand);
+            Call_PushCell(client);
+            Call_Finish();
+            break;
+        }
+    }
+
+    return Plugin_Continue;
+}
 
 
 /***********************
@@ -309,8 +328,7 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
         return Plugin_Handled;
 
     if (g_EditMode) {
-        SwitchPlayerTeam(client, CS_TEAM_CT);
-        CS_RespawnPlayer(client);
+        MovePlayerToEditMode(client);
         return Plugin_Handled;
     }
 
@@ -764,7 +782,7 @@ public void UpdateTeams() {
 }
 
 static bool ScramblesEnabled() {
-    return g_hRoundsToScramble.IntValue >= 1 && g_hUseRandomTeams.IntValue != 0;
+    return g_hRoundsToScramble.IntValue >= 1 && g_hUseRandomTeams.IntValue == 0;
 }
 
 public void TerroristsWon() {
@@ -786,7 +804,7 @@ public void TerroristsWon() {
 
 public void CounterTerroristsWon() {
     if (!g_bombPlanted && IsValidClient(g_BombOwner) && g_RoundCount >= 3) {
-        Retakes_MessageToAll("\x03%N \x01failed to plant...", g_BombOwner);
+        Retakes_MessageToAll("%t", "FailedToPlant", g_BombOwner);
         Call_StartForward(g_OnFailToPlant);
         Call_PushCell(g_BombOwner);
         Call_Finish();
