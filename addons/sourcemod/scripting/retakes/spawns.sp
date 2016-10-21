@@ -1,8 +1,3 @@
-// Gdk: add taser to admins
-#include <clientprefs>
-
-Handle g_taser_cookie = INVALID_HANDLE;
-
 static void GetConfigFileName(char[] buffer, int size) {
     // get the map, with any workshop stuff before removed
     char mapName[128];
@@ -158,24 +153,16 @@ public void GiveWeapons(int client) {
     Client_RemoveAllWeapons(client);
 
     if (g_Team[client] == CS_TEAM_T)
-    	GivePlayerItem(client, "weapon_knife_t");
+        GivePlayerItem(client, "weapon_knife_t");
     else
-	GivePlayerItem(client, "weapon_knife");
+        GivePlayerItem(client, "weapon_knife");
 
-    g_taser_cookie = FindClientCookie("retakes_taser");
-    char buffer[INTEGER_STRING_LENGTH];
-    GetClientCookie(client, g_taser_cookie, buffer, sizeof(buffer));
-    if(GetUserAdmin(client) != INVALID_ADMIN_ID && StringToInt(buffer))
-    {
-	GivePlayerItem(client, "weapon_taser");
-	PrintToChatAll(buffer[client]);
-    }
     GivePlayerItem(client, g_PlayerPrimary[client]);
     GivePlayerItem(client, g_PlayerSecondary[client]);
 
     Client_SetArmor(client, g_PlayerArmor[client]);
     SetEntityHealth(client, g_PlayerHealth[client]);
-    SetEntData(client, FindSendPropOffs("CCSPlayer", "m_bHasHelmet"), g_PlayerHelmet[client]);
+    SetEntData(client, FindSendPropInfo("CCSPlayer", "m_bHasHelmet"), g_PlayerHelmet[client]);
 
     if (g_Team[client] == CS_TEAM_CT) {
         SetEntProp(client, Prop_Send, "m_bHasDefuser", g_PlayerKit[client]);
@@ -197,6 +184,7 @@ public void GiveWeapons(int client) {
     }
 
     if (g_BombOwner == client) {
+        g_bombPlantSignal = false;
         GivePlayerItem(client, "weapon_c4");
         CreateTimer(1.0, Timer_StartPlant, client);
     }
@@ -230,6 +218,18 @@ public bool InsideBombSite(float vec[3]) {
 public bool SpawnInsideBombSite(int spawnIndex) {
     return InsideBombSite(g_SpawnPoints[spawnIndex]);
 }
+
+//public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3],
+//                             int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
+//   // Forces the player to get the bomb out on their spawn.
+//    // The signal is fired by a timer after the bomb-carrier's spawn.
+//   if (g_bombPlantSignal && !g_bombPlanted && client == g_BombOwner) {
+//        buttons |= IN_USE;
+//        g_bombPlantSignal = false;
+//    }
+//
+//   return Plugin_Continue;
+//}
 
 public bool CanBombCarrierSpawn(int spawn) {
     if (g_SpawnTeams[spawn] == CS_TEAM_CT)

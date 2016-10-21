@@ -13,7 +13,7 @@ public Plugin myinfo =
     name = "CS:GO Retakes: Gdk's alternate weapon allocator",
     author = "Gdk",
     description = "Alternate weapon allocator for splewis retakes plugin",
-    version = "1.2.5",
+    version = "1.3.1",
     url = "TopSecretGaming.net"
 };
 
@@ -51,7 +51,6 @@ int  g_t_pistol[MAXPLAYERS+1];
 int  g_t_sidearm[MAXPLAYERS+1];
 int  g_awp[MAXPLAYERS+1];
 bool g_silenced_m4[MAXPLAYERS+1];
-bool g_taser[MAXPLAYERS+1];
 
 // Cookies
 Handle g_ct_pistol_cookie = INVALID_HANDLE;
@@ -60,7 +59,6 @@ Handle g_ct_sidearm_cookie = INVALID_HANDLE;
 Handle g_t_sidearm_cookie = INVALID_HANDLE;
 Handle g_m4_cookie = INVALID_HANDLE;
 Handle g_awp_cookie = INVALID_HANDLE;
-Handle g_taser_cookie = INVALID_HANDLE;
 
 // Convars
 Handle g_advertise_pistol_menu = INVALID_HANDLE;
@@ -94,8 +92,6 @@ public void OnPluginStart()
 	g_t_sidearm_cookie = RegClientCookie("retakes_t_sidearm", "", CookieAccess_Private);
     	g_m4_cookie  = RegClientCookie("retakes_m4", "", CookieAccess_Private);
     	g_awp_cookie = RegClientCookie("retakes_awp", "", CookieAccess_Private);
-	g_taser_cookie = RegClientCookie("retakes_taser", "", CookieAccess_Public);
-
 
     	RegConsoleCmd("sm_guns", Command_GunsMenu, "Opens the retakes primary weapons menu");
 	RegConsoleCmd("sm_pistols", Command_PistolsMenu, "Opens the retakes seconday weapons menu");
@@ -203,10 +199,6 @@ public void OnClientCookiesCached(int client)
 	{
 		SetCookieInt(client, g_awp_cookie, 1);
 	}
-	if(!GetClientCookieTime(client, g_taser_cookie))
-	{
-		SetCookieInt(client, g_taser_cookie, 1);
-	}
 
     	g_ct_pistol[client] = GetCookieInt (client, g_ct_pistol_cookie);
 	g_t_pistol[client] = GetCookieInt (client, g_t_pistol_cookie);
@@ -214,7 +206,6 @@ public void OnClientCookiesCached(int client)
 	g_t_sidearm[client] = GetCookieInt (client, g_t_sidearm_cookie);
 	g_silenced_m4[client] = GetCookieBool (client, g_m4_cookie);
 	g_awp[client] = GetCookieInt (client, g_awp_cookie);
-	g_taser[client] = GetCookieBool (client, g_taser_cookie);
 }
 
 public void WeaponAllocator(ArrayList tPlayers, ArrayList ctPlayers, Bombsite bombsite) 
@@ -784,7 +775,10 @@ public void GiveAwpMenu(int client)
 {
 
     	Handle menu = CreateMenu(MenuHandler_AWP);
+
     	SetMenuTitle(menu, "Allow yourself to receive AWPs?");
+	SetMenuPagination(menu, MENU_NO_PAGINATION);
+	SetMenuExitButton(menu, true);
 
 	if(GetUserAdmin(client) != INVALID_ADMIN_ID)
 	{
@@ -809,46 +803,11 @@ public int MenuHandler_AWP(Handle menu, MenuAction action, int param1, int param
         	g_awp[client] = allowAwps;
         	SetCookieInt(client, g_awp_cookie, allowAwps);
 		
-		if(GetUserAdmin(client) != INVALID_ADMIN_ID)
-		{
-			GiveTaserMenu(client);
-		}
-		else
-		{
-			if (GetConVarInt(g_advertise_pistol_menu) == 1)
-				PrintToChat(client, "To customize your pistols type: \x04!pistols");
-			if (GetConVarInt(g_advertise_pistol_menu) == 2)
-				GiveCTPistolMenu(client);
-		}
-    	} 
-	else if (action == MenuAction_End) 
-        	CloseHandle(menu);
-}
-
-//Taser Menu
-public void GiveTaserMenu(int client)
-{
-    Handle menu = CreateMenu(MenuHandler_TASER);
-    SetMenuTitle(menu, "Equip Taser?");
-    AddMenuBool(menu, true, "Yes");
-    AddMenuBool(menu, false, "No");
-    DisplayMenu(menu, client, MENU_TIME_LENGTH);
-}
-
-public int MenuHandler_TASER(Handle menu, MenuAction action, int param1, int param2) 
-{
-	if (action == MenuAction_Select) 
-	{
-	       	int client = param1;
-     		bool allowTaser = GetMenuBool(menu, param2);
-        	g_taser[client] = allowTaser;
-        	SetCookieBool(client, g_taser_cookie, allowTaser);
-		
 		if (GetConVarInt(g_advertise_pistol_menu) == 1)
 			PrintToChat(client, "To customize your pistols type: \x04!pistols");
 		if (GetConVarInt(g_advertise_pistol_menu) == 2)
 			GiveCTPistolMenu(client);
- 	} 
+    	} 
 	else if (action == MenuAction_End) 
         	CloseHandle(menu);
 }
@@ -857,7 +816,11 @@ public int MenuHandler_TASER(Handle menu, MenuAction action, int param1, int par
 public void GiveCTPistolMenu(int client) 
 {
 	Handle menu = CreateMenu(MenuHandler_CT_PISTOL);
-	SetMenuTitle(menu, "Select CT pistol round weapon:");
+
+	SetMenuTitle(menu, "CT pistol round weapon:");
+	SetMenuPagination(menu, MENU_NO_PAGINATION);
+	SetMenuExitButton(menu, true);
+
 	AddMenuInt(menu, 1, "P2000/USP-S");
 	if (GetConVarInt(g_p250_enabled) == 1)
 		AddMenuInt(menu, 2, "p250");
@@ -869,6 +832,7 @@ public void GiveCTPistolMenu(int client)
        	 	AddMenuInt(menu, 5, "Dual Elite");
    	if (GetConVarInt(g_dual_elite_enabled) == 1)
         	AddMenuInt(menu, 6, "Deagle");
+
     	DisplayMenu(menu, client, MENU_TIME_LENGTH);
 }
 
@@ -890,7 +854,11 @@ public int MenuHandler_CT_PISTOL(Handle menu, MenuAction action, int param1, int
 public void GiveCTSideMenu(int client) 
 {
 	Handle menu = CreateMenu(MenuHandler_CT_Sidearm);
-	SetMenuTitle(menu, "Select CT sidearm:");
+	
+	SetMenuTitle(menu, "CT gun round sidearm:");
+	SetMenuPagination(menu, MENU_NO_PAGINATION);
+	SetMenuExitButton(menu, true);
+
 	AddMenuInt(menu, 1, "P2000/USP-S");
 	if (GetConVarInt(g_p250_enabled) == 1)
 		AddMenuInt(menu, 2, "p250");
@@ -904,6 +872,7 @@ public void GiveCTSideMenu(int client)
         	AddMenuInt(menu, 6, "Deagle");
 	if (GetConVarInt(g_dual_elite_enabled) == 1)
        		AddMenuInt(menu, 7, "Dual Elite");
+
     	DisplayMenu(menu, client, MENU_TIME_LENGTH);
 }
 
@@ -925,7 +894,11 @@ public int MenuHandler_CT_Sidearm(Handle menu, MenuAction action, int param1, in
 public void GiveTPistolMenu(int client) 
 {
 	Handle menu = CreateMenu(MenuHandler_T_PISTOL);
-	SetMenuTitle(menu, "Select T pistol round weapon:");
+
+	SetMenuTitle(menu, "T pistol round weapon:");
+	SetMenuPagination(menu, MENU_NO_PAGINATION);
+	SetMenuExitButton(menu, true);
+
 	AddMenuInt(menu, 1, "Glock");
 	if (GetConVarInt(g_p250_enabled) == 1)
 		AddMenuInt(menu, 2, "p250");
@@ -937,6 +910,7 @@ public void GiveTPistolMenu(int client)
        	 	AddMenuInt(menu, 5, "Dual Elite");
    	if (GetConVarInt(g_dual_elite_enabled) == 1)
         	AddMenuInt(menu, 6, "Deagle");
+
     	DisplayMenu(menu, client, MENU_TIME_LENGTH);
 }
 
@@ -958,7 +932,11 @@ public int MenuHandler_T_PISTOL(Handle menu, MenuAction action, int param1, int 
 public void GiveTSideMenu(int client) 
 {
 	Handle menu = CreateMenu(MenuHandler_T_Sidearm);
-	SetMenuTitle(menu, "Select T sidearm:");
+
+	SetMenuTitle(menu, "T gun round sidearm:");
+	SetMenuPagination(menu, MENU_NO_PAGINATION);
+	SetMenuExitButton(menu, true);
+
 	AddMenuInt(menu, 1, "Glock");
 	if (GetConVarInt(g_p250_enabled) == 1)
 		AddMenuInt(menu, 2, "p250");
@@ -972,6 +950,7 @@ public void GiveTSideMenu(int client)
         	AddMenuInt(menu, 6, "Deagle");
 	if (GetConVarInt(g_dual_elite_enabled) == 1)
        		AddMenuInt(menu, 7, "Dual Elite");
+
     	DisplayMenu(menu, client, MENU_TIME_LENGTH);
 }
 
@@ -987,4 +966,3 @@ public int MenuHandler_T_Sidearm(Handle menu, MenuAction action, int param1, int
 	else if (action == MenuAction_End)
         	CloseHandle(menu);
 }
-
