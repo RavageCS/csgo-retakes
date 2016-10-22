@@ -472,7 +472,8 @@ public Action Event_PlayerConnectFull(Handle event, const char[] name, bool dont
 
 public Action ForceJoin(Handle timer, int client)
 {
-	ClientCommand(client,"joingame");
+	if(IsClientConnected(client))
+		ClientCommand(client,"joingame");
 }
 
 
