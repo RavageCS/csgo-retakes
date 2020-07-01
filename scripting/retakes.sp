@@ -448,7 +448,7 @@ public Action Event_PlayerTeam(Event event, const char[] name, bool dontBroadcas
         return Plugin_Continue;
     }
 
-    event.BroadcastDisabled = true;
+    SetEventBool(event, "silent", true);
     return Plugin_Continue;
 }
 
@@ -463,7 +463,7 @@ public Action Event_PlayerConnectFull(Event event, const char[] name, bool dontB
         return;
     }
 
-    int client = GetClientOfUserId(event.GetInt("userid"));
+    int client = GetClientOfUserId(GetEventInt(event, "userid"));
     SetEntPropFloat(client, Prop_Send, "m_fForceTeam", 3600.0);
 }
 
@@ -476,7 +476,7 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
         return;
     }
 
-    int client = GetClientOfUserId(event.GetInt("userid"));
+    int client = GetClientOfUserId(GetEventInt(event, "userid"));
     if (!IsValidClient(client) || !IsOnTeam(client) || g_EditMode || Retakes_InWarmup())
         return;
 
@@ -504,8 +504,8 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
         return;
     }
 
-    int victim = GetClientOfUserId(event.GetInt("userid"));
-    int attacker = GetClientOfUserId(event.GetInt("attacker"));
+    int victim = GetClientOfUserId(GetEventInt(event, "userid"));
+    int attacker = GetClientOfUserId(GetEventInt(event, "userid"));
 
     bool validAttacker = IsValidClient(attacker);
     bool validVictim = IsValidClient(victim);
@@ -527,13 +527,13 @@ public Action Event_DamageDealt(Event event, const char[] name, bool dontBroadca
         return Plugin_Continue;
     }
 
-    int attacker = GetClientOfUserId(event.GetInt("attacker"));
-    int victim = GetClientOfUserId(event.GetInt("userid"));
+    int attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+    int victim = GetClientOfUserId(GetEventInt(event, "userid"));
     bool validAttacker = IsValidClient(attacker);
     bool validVictim = IsValidClient(victim);
 
     if (validAttacker && validVictim && HelpfulAttack(attacker, victim) ) {
-        int damage = event.GetInt("dmg_PlayerHealth");
+        int damage = GetEventInt(event, "dmg_health");
         g_RoundPoints[attacker] += (damage * POINTS_DMG);
     }
     return Plugin_Continue;
@@ -559,7 +559,7 @@ public Action Event_Bomb(Event event, const char[] name, bool dontBroadcast) {
         return;
     }
 
-    int client = GetClientOfUserId(event.GetInt("userid"));
+    int client = GetClientOfUserId(GetEventInt(event, "userid"));
     if (IsValidClient(client)) {
         g_RoundPoints[client] += POINTS_BOMB;
     }
@@ -628,7 +628,7 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 
     if (g_ActivePlayers >= 2) {
         g_RoundCount++;
-        int winner = event.GetInt("winner");
+        int winner = GetEventInt(event, "winner");
 
         ArrayList ts = new ArrayList();
         ArrayList cts = new ArrayList();
